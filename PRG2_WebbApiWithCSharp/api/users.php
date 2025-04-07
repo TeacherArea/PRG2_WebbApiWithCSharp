@@ -1,16 +1,18 @@
 <?php
 
-
-echo $_SERVER['REQUEST_METHOD'];
-
 $dataFile = __DIR__ . '/users.json';
 
 header("Content-Type: application/json");
 
 $method = $_SERVER['REQUEST_METHOD'];
+
+// hack för XAMP
+if ($method === 'POST' && isset($_GET['_method'])) {
+    $method = strtoupper($_GET['_method']);
+}
+
 $input = json_decode(file_get_contents('php://input'), true);
 $id = $_GET['id'] ?? null;
-
 
 $users = file_exists($dataFile) ? json_decode(file_get_contents($dataFile), true) : [];
 
@@ -38,12 +40,26 @@ switch ($method) {
             echo json_encode(["error" => "Missing id"]);
             break;
         }
+
+        $found = false;
         foreach ($users as &$user) {
             if ($user['id'] == $id) {
-                $user = array_merge($user, $input);
+                foreach ($input as $key => $value) {
+                    if ($key !== 'id' && array_key_exists($key, $user)) {
+                        $user[$key] = $value;
+                    }
+                }
+                $found = true;
                 break;
             }
         }
+
+        if (!$found) {
+            http_response_code(404);
+            echo json_encode(["error" => "User not found"]);
+            break;
+        }
+
         file_put_contents($dataFile, json_encode($users, JSON_PRETTY_PRINT));
         echo json_encode(["status" => "updated"]);
         break;
@@ -64,4 +80,3 @@ switch ($method) {
         echo json_encode(["error" => "Unsupported method"]);
         break;
 }
-?>
